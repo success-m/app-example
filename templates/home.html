@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <title>Ap Credit</title>
+    <style>
+        body {
+            background-color: #9ac2d5;
+        }
+
+        .ap-main {
+            margin-top: 10%;
+        }
+
+        .ap-col {
+            background-color: #fff;
+            padding-top: 20px;
+            padding-bottom: 20px;
+            -webkit-box-shadow: 0px 0px 11px -1px rgba(0, 0, 0, 0.75);
+            -moz-box-shadow: 0px 0px 11px -1px rgba(0, 0, 0, 0.75);
+            box-shadow: 0px 0px 11px -1px rgba(0, 0, 0, 0.75);
+        }
+
+        .ap-max-100 {
+            max-width: 100px;
+        }
+
+        #ap-processing {
+            display: none;
+        }
+
+        #ap-info-modal {
+            background-color: #353333e6;
+        }
+    </style>
+</head>
+<body>
+
+<div class="modal fade" id="ap-info-modal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row ap-main">
+        <div class="col-md-2"></div>
+        <div class="col-md-8 ap-col">
+            <h3>Card Details</h3>
+            <hr/>
+            <p class="text-center" id="ap-processing">Processing...</p>
+            <form id="ap-form">
+                <div class="row form-group">
+                    <div class="col-md-3 align-middle">Name on Card</div>
+                    <div class="col-md-9"><input type="text" class="form-control" id="name_on_card"
+                                                 placeholder="Name on Card" required></div>
+                </div>
+                <div class="row form-group">
+                    <div class="col-md-3 align-middle">Credit Card Number</div>
+                    <div class="col-md-9"><input type="text" class="form-control" id="card-number"
+                                                 placeholder="Credit Card Number" required></div>
+                </div>
+                <div class="row form-group">
+                    <div class="col-md-3 align-middle">Expiry Year, Expiry Month</div>
+                    <div class="col-md-9"><input type="text" class="form-control ap-max-100" id="expiry"
+                                                 placeholder="yyyy-mm" required></div>
+                </div>
+                <div class="row form-group">
+                    <div class="col-md-3 align-middle">CVV</div>
+                    <div class="col-md-9"><input type="text" class="form-control ap-max-100" id="cvv" placeholder="CVV"
+                                                 required></div>
+                </div>
+                <button type="button" class="btn btn-primary" id="submit-form">Submit</button>
+            </form>
+        </div>
+        <div class="col-md-2"></div>
+
+    </div>
+</div>
+<!-- Optional JavaScript -->
+<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.4.0.min.js"
+        integrity="sha256-BJeo0qm959uMBGb65z40ejJYGSgR7REI4+CW1fNKwOg="
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+        integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+        integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/rollups/aes.js"></script>
+
+<script>
+    $(document).ready(function () {
+
+        var ob = function () {
+            var public_key = "";
+            var token = "";
+            var form_data = {};
+            var error = "";
+
+            return {
+                encrypt_data: function (message) {
+                    return CryptoJS.AES.encrypt(message, public_key).toString();
+                },
+                handle_request_error: function () {
+                    public_key = "";
+                    token = "";
+                    form_data = {};
+
+                    $(".modal-title").html("Error");
+                    $(".modal-body").html("Oops!! Something went wrong.");
+                    $("#ap-processing").slideUp(400);
+                    $("#ap-info-modal").show(400);
+                    $("#ap-info-modal").addClass("show");
+                },
+                get_form_data: function () {
+                    form_data = {
+                        "name": $("#name_on_card").val(),
+                        "card_number": this.encrypt_data($("#card-number").val()),
+                        "expiry": $("#expiry").val(),
+                        "cvv": $("#cvv").val()
+                    };
+                    this.get_token();
+                },
+                process_card: function () {
+                    var obj = this;
+                    $.ajax({
+                        method: "POST",
+                        cache: false,
+                        data: form_data,
+                        url: "{{ ap_url }}/proxy/process",
+                        success: function (m) {
+                            // m is a json returned from server
+                            if (m.status == 200) {
+                                $(".modal-title").html("Success");
+                            } else {
+                                $(".modal-title").html("Error");
+                            }
+
+                            $(".modal-body").html(m.message);
+
+                            $("#ap-processing").slideUp(400);
+                            $("#ap-info-modal").show(400);
+                            $("#ap-info-modal").addClass("show");
+                        },
+                        error: obj.handle_request_error
+                    })
+                },
+                get_token: function () {
+                    var obj = this;
+                    $.ajax({
+                        method: "POST",
+                        cache: false,
+                        data: {
+                            "card": form_data["card_number"]
+                        },
+                        url: "{{ ap_url }}/locker/token",
+                        success: function (m) {
+                            // m is a json returned from server
+                            token = m.token;
+                            form_data["token"] = token;
+                            obj.process_card();
+                        },
+                        error: obj.handle_request_error
+                    })
+                },
+                get_public_key: function () {
+                    var obj = this;
+                    $.ajax({
+                        method: "GET",
+                        cache: false,
+                        url: "{{ ap_url }}/locker/public_key",
+                        success: function (m) {
+                            // m is a json returned from server
+                            public_key = m.key;
+                            obj.get_form_data();
+                        },
+                        error: obj.handle_request_error
+                    })
+                },
+                vaidate: function () {
+                    error = "";
+
+                    form_data = {
+                        "name": $("#name_on_card").val(),
+                        "card_number": $("#card-number").val(),
+                        "expiry": $("#expiry").val(),
+                        "cvv": $("#cvv").val()
+                    };
+
+                    if (form_data["name"].length == 0) {
+                        error += "<p>Please enter your Name on Card.</p>"
+                    }
+
+                    c = $("#card-number").val();
+                    if (c.length == 0) {
+                        error += "<p>Please enter your Credit Card Number.</p>"
+                    } else if (!(c.search(/^\d{10,20}$/) >= 0)) {
+                        error += "<p>Please enter your a valid Credit Card Number in xxxxxxxxxxxxxx format.</p>"
+                    }
+
+                    if (form_data["expiry"].length == 0) {
+                        error += "<p>Please enter expiry year-month.</p>"
+                    } else if (!(form_data["expiry"].length == 7 && form_data["expiry"].search(/^\d{4}-\d{2}$/) >= 0)) {
+                        error += "<p>Please enter expiry year-month in yyyy-mm format.</p>"
+                    }
+
+                    if (form_data["cvv"].length == 0) {
+                        error += "<p>Please enter your cards' CVV.</p>"
+                    } else if (!(form_data["cvv"].search(/^\d{3,4}$/) >= 0)) {
+                        error += "<p>Please enter a valid CVV.</p>"
+                    }
+
+                    form_data = {};
+
+                    if (error.length > 0) {
+                        return false
+                    } else {
+                        return true
+                    }
+                },
+                handle_form_submit: function () {
+                    var obj = this;
+                    $("#submit-form").click(function () {
+                        if (obj.vaidate()) {
+                            $("#ap-processing").slideDown(400);
+                            obj.get_public_key();
+                        } else {
+                            $(".modal-title").html("Error");
+                            $(".modal-body").html(error);
+
+                            $("#ap-info-modal").show(400);
+                            $("#ap-info-modal").addClass("show");
+                        }
+                    });
+                },
+                handle_modal_close: function () {
+                    $(".close").click(function () {
+                        $("#ap-info-modal").removeClass("show");
+                        $("#ap-info-modal").hide();
+                    });
+                },
+                init: function () {
+                    this.handle_form_submit();
+                    this.handle_modal_close();
+                }
+            }
+
+        };
+        ob().init();
+    });
+</script>
+</body>
+</html>
